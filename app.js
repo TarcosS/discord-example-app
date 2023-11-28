@@ -24,7 +24,7 @@ const client = createDfuseClient({
 // You must use a $cursor variable so stream starts back at last marked cursor on reconnect!
 const operation = `subscription ($cursor: String) {
   searchTransactionsForward(
-    query: "(account:theopentoken) (action:transfer OR action:buy)",
+    query: "(account:eosio.token) (action:transfer OR action:buy)",
     cursor: $cursor
   ) {
     undo cursor
