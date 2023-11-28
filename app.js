@@ -9,7 +9,42 @@ import {
 } from 'discord-interactions';
 import { VerifyDiscordRequest, getRandomEmoji, DiscordRequest } from './utils.js';
 import { getShuffledOptions, getResult } from './game.js';
+import { createDfuseClient } from "@dfuse/client"
+import nfetch from 'node-fetch';
+import ws from 'ws';
 
+global.fetch = nfetch;
+global.WebSocket = ws;
+
+const client = createDfuseClient({
+  apiKey: 'e8a6dcbd807cb69977c3cf8b976098e5',
+  network: "wax.dfuse.eosnation.io",
+})
+
+// You must use a $cursor variable so stream starts back at last marked cursor on reconnect!
+const operation = `subscription ($cursor: String) {
+  searchTransactionsForward(
+    query: "(account:theopentoken) (action:transfer OR action:buy)",
+    cursor: $cursor
+  ) {
+    undo cursor
+    block { num id }
+    trace {
+      id
+      matchingActions {
+        seq
+        receiver account name
+        json
+        dbOps { operation oldJSON { object error } newJSON { object error } }
+        dtrxOps { operation payer transaction { actions { account name json } } }
+        ramOps { operation delta usage }
+      }
+    }
+  }
+}`
+
+
+await client.release()
 // Create an express app
 const app = express();
 // Get port, or default to 3000
@@ -51,6 +86,21 @@ app.post('/interactions', async function (req, res) {
           content: 'hello world ' + getRandomEmoji(),
         },
       });
+    }
+    if (name === 'watch_wax') {
+      const stream = await client.graphql(operation, (message) => {
+        if (message.type === "data") {
+          return res.send({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              // Fetches a random emoji to send from a helper function
+              content: message.data.searchTransactionsForward.trace.matchingActions.json.memo,
+            },
+          });
+        }
+      
+      });
+      await stream.join()
     }
   }
 });
